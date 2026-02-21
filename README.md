@@ -103,8 +103,14 @@ ______________________________________________________________________
 This project would not be possible without the hard work of the original creators and the community.
 
 - **Original Project**: [spotDL - spotify-downloader](https://github.com/spotDL/spotify-downloader)
-- **Maintainer (Neuvillette Edition)**: [Neuvillette-dc](https://github.com/Neuvillette-dc)
-
+- **Contributor (Neuvillette Edition)**: [Neuvillette-dc](https://github.com/Neuvillette-dc)
+  <details>
+  <summary>Environment Details</summary>
+  <ul>
+    <li>Operating System: Linux</li>
+    <li>Python Version: 3.14</li>
+  </ul>
+  </details>
 ______________________________________________________________________
 
 ## ⚖️ License
