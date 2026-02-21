@@ -173,7 +173,17 @@ def init_logging(log_level: str, log_format: Optional[str] = None):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("spotipy").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
-    logging.getLogger("syncedlyrics").setLevel(logging.WARNING)
+    logging.getLogger("syncedlyrics").setLevel(logging.CRITICAL)
+    for provider in [
+        "NetEase",
+        "Deezer",
+        "Lyricsify",
+        "Megalobiz",
+        "Musixmatch",
+        "Lrclib",
+        "Genius",
+    ]:
+        logging.getLogger(provider).setLevel(logging.CRITICAL)
     logging.getLogger("bandcamp_api").setLevel(logging.WARNING)
     logging.getLogger("beautifulsoup4").setLevel(logging.WARNING)
     logging.getLogger("pytube").setLevel(logging.ERROR)

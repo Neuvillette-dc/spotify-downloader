@@ -21,6 +21,9 @@ def download(
     - query: list of strings to search for.
     """
 
+    if downloader.settings.get("csv"):
+        query.append(downloader.settings["csv"])
+
     # Parse the query
     songs = get_simple_songs(
         query,

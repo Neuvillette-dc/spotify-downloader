@@ -67,7 +67,7 @@ def parse_main_options(parser: _ArgumentGroup):
     # Add query argument
     query = parser.add_argument(
         "query",
-        nargs="+",
+        nargs="*",
         type=str,
         help=(
             "N|Spotify/YouTube URL for a song/playlist/album/artist/etc. to download.\n\n"
@@ -443,6 +443,13 @@ def parse_output_options(parser: _ArgumentGroup):
         "--archive",
         type=str,
         help="Specify the file name for an archive of already downloaded songs",
+    )
+
+    # Option to use a CSV file for metadata
+    parser.add_argument(
+        "--csv",
+        type=str,
+        help="Path to a CSV file to use for metadata.",
     )
 
     # Option to set the track number & album of tracks in a playlist to their index in the playlist

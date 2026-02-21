@@ -22,6 +22,8 @@ from spotdl.types.saved import Saved
 from spotdl.types.song import Song, SongList
 from spotdl.utils.metadata import get_file_metadata
 from spotdl.utils.spotify import SpotifyClient, SpotifyError
+from spotdl.utils.enrichment import enrich_song_metadata
+import csv
 
 __all__ = [
     "QueryError",
@@ -35,6 +37,7 @@ __all__ = [
     "create_ytm_playlist",
     "get_all_user_playlists",
     "get_user_saved_albums",
+    "parse_csv",
 ]
 
 logger = logging.getLogger(__name__)
@@ -54,6 +57,72 @@ def get_ytm_client() -> YTMusic:
         client = YTMusic()
 
     return client
+
+
+def parse_csv(file_path: str) -> List[Song]:
+    """
+    Parse a CSV file and return a list of Song objects.
+
+    ### Arguments
+    - file_path: Path to the CSV file.
+
+    ### Returns
+    - A list of Song objects.
+    """
+
+    songs: List[Song] = []
+    with open(file_path, "r", encoding="utf-8-sig") as csv_file:
+        reader = csv.reader(csv_file)
+        for row in reader:
+            if not row or len(row) < 5:
+                continue
+
+            # Skip header if present
+            if "spotify:track:" not in row[0] and "open.spotify.com/track/" not in row[0]:
+                continue
+
+            # Check if URI or URL
+            url = row[0]
+            if url.startswith("spotify:track:"):
+                url = "https://open.spotify.com/track/" + url.split(":")[-1]
+
+            # Parse year from date
+            year = 0
+            if len(row) > 4 and row[4] and len(row[4]) >= 4:
+                try:
+                    year = int(row[4][:4])
+                except ValueError:
+                    year = 0
+
+            # Clean up artists and genres
+            # Split by ; or , for artists
+            artists_str = row[3] if len(row) > 3 else ""
+            artists_list = [a.strip() for a in artists_str.replace(";", ",").split(",") if a.strip()]
+            
+            # Genres are usually in row[10] based on the provided sample
+            genres_list = []
+            if len(row) > 10:
+                genres_list = [g.strip() for g in row[10].split(",") if g.strip()]
+
+            # Note: We skip enrichment here and do it in parse_query's thread pool
+            song = Song.from_missing_data(
+                url=url,
+                name=row[1],
+                album_name=row[2],
+                artists=artists_list,
+                artist=artists_list[0] if artists_list else "Unknown Artist",
+                date=row[4],
+                year=year,
+                duration=int(float(row[5]) / 1000) if row[5].replace('.','',1).isdigit() else 0,
+                popularity=int(row[6]) if len(row) > 6 and row[6].isdigit() else 0,
+                explicit=row[7].lower() == "true" if len(row) > 7 else False,
+                publisher=row[11] if len(row) > 11 else "",
+                genres=genres_list,
+                song_id=url.split("/")[-1],
+            )
+            songs.append(song)
+
+    return songs
 
 
 class QueryError(Exception):
@@ -105,7 +174,15 @@ def parse_query(
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        future_to_song = {executor.submit(reinit_song, song): song for song in songs}
+        # Enriched CSV songs if they were added
+        future_to_song = {
+            executor.submit(
+                lambda s: enrich_song_metadata(s)
+                if s.isrc is None or SpotifyClient._instance is None
+                else reinit_song(s),
+                song
+            ): song for song in songs
+        }
         for future in concurrent.futures.as_completed(future_to_song):
             song = future_to_song[future]
             try:
@@ -136,8 +213,15 @@ def get_simple_songs(
 
     songs: List[Song] = []
     lists: List[SongList] = []
+
+    # Handle --csv flag if provided in query (it's actually passed as a direct arg usually)
+    # but here we handle if the user passes a .csv file as a query item too
     for request in query:
         logger.info("Processing query: %s", request)
+        
+        if request.endswith(".csv"):
+            songs.extend(parse_csv(request))
+            continue
 
         # Remove /intl-xxx/ from Spotify URLs with regex
         request = re.sub(r"\/intl-\w+\/", "/", request)

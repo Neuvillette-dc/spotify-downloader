@@ -197,82 +197,124 @@ def embed_metadata(
         raise MetadataError("Unable to load file.") from exc
 
     # Embed basic metadata
-    audio_file[tag_preset["artist"]] = song.artists
-    audio_file[tag_preset["albumartist"]] = (
-        song.album_artist if song.album_artist else song.artist
-    )
-    audio_file[tag_preset["title"]] = song.name
-    audio_file[tag_preset["date"]] = song.date
-    audio_file[tag_preset["encodedby"]] = song.publisher
+    try:
+        audio_file[tag_preset["artist"]] = song.artists
+        audio_file[tag_preset["albumartist"]] = (
+            song.album_artist if song.album_artist else song.artist
+        )
+        audio_file[tag_preset["title"]] = song.name
+        audio_file[tag_preset["date"]] = song.date
+        audio_file[tag_preset["encodedby"]] = song.publisher
+    except Exception as exc:
+        logger.error("Failed to embed basic metadata: %s", exc)
+        logger.debug("Song data: %s", song.json)
+        raise MetadataError("Failed to embed basic metadata") from exc
 
     # Embed metadata that isn't always present
-    album_name = song.album_name
-    if album_name:
-        audio_file[tag_preset["album"]] = album_name
+    try:
+        album_name = song.album_name
+        if album_name:
+            audio_file[tag_preset["album"]] = album_name
 
-    if song.genres:
-        audio_file[tag_preset["genre"]] = song.genres[0].title()
+        if song.genres:
+            audio_file[tag_preset["genre"]] = song.genres[0].title()
 
-    if song.copyright_text:
-        audio_file[tag_preset["copyright"]] = song.copyright_text
+        if song.copyright_text:
+            audio_file[tag_preset["copyright"]] = song.copyright_text
 
-    if song.download_url and encoding != "mp3":
-        audio_file[tag_preset["comment"]] = song.download_url
+        if song.download_url and encoding != "mp3":
+            audio_file[tag_preset["comment"]] = song.download_url
+    except Exception as exc:
+        logger.error("Failed to embed optional metadata: %s", exc)
+        raise MetadataError("Failed to embed optional metadata") from exc
 
     # Embed some metadata in format specific ways
-    if encoding in ["flac", "ogg", "opus"]:
-        audio_file["discnumber"] = str(song.disc_number)
-        audio_file["disctotal"] = str(song.disc_count)
-        audio_file["tracktotal"] = str(song.tracks_count)
-        audio_file["tracknumber"] = str(song.track_number)
-        audio_file["woas"] = song.url
-        audio_file["isrc"] = song.isrc
-    elif encoding == "m4a":
-        audio_file[tag_preset["discnumber"]] = [(song.disc_number, song.disc_count)]
-        audio_file[tag_preset["tracknumber"]] = [(song.track_number, song.tracks_count)]
-        audio_file[tag_preset["explicit"]] = (4 if song.explicit is True else 2,)
-        audio_file[tag_preset["woas"]] = song.url.encode("utf-8")
-    elif encoding == "mp3":
-        audio_file["tracknumber"] = f"{str(song.track_number)}/{str(song.tracks_count)}"
-        audio_file["discnumber"] = f"{str(song.disc_number)}/{str(song.disc_count)}"
-        audio_file["isrc"] = song.isrc
+    try:
+        if encoding in ["flac", "ogg", "opus"]:
+            audio_file["discnumber"] = str(song.disc_number)
+            audio_file["disctotal"] = str(song.disc_count)
+            audio_file["tracktotal"] = str(song.tracks_count)
+            audio_file["tracknumber"] = str(song.track_number)
+            audio_file["woas"] = song.url
+            audio_file["isrc"] = song.isrc
+        elif encoding == "m4a":
+            audio_file[tag_preset["discnumber"]] = [(song.disc_number, song.disc_count)]
+            audio_file[tag_preset["tracknumber"]] = [(song.track_number, song.tracks_count)]
+            audio_file[tag_preset["explicit"]] = (4 if song.explicit is True else 2,)
+            audio_file[tag_preset["woas"]] = song.url.encode("utf-8")
+        elif encoding == "mp3":
+            if song.track_number and song.tracks_count:
+                audio_file["tracknumber"] = (
+                    f"{str(song.track_number)}/{str(song.tracks_count)}"
+                )
+            elif song.track_number:
+                audio_file["tracknumber"] = str(song.track_number)
+
+            if song.disc_number and song.disc_count:
+                audio_file["discnumber"] = (
+                    f"{str(song.disc_number)}/{str(song.disc_count)}"
+                )
+            elif song.disc_number:
+                audio_file["discnumber"] = str(song.disc_number)
+
+            if song.isrc:
+                audio_file["isrc"] = song.isrc
+    except Exception as exc:
+        logger.error("Failed to embed format-specific metadata: %s", exc)
+        raise MetadataError("Failed to embed format-specific metadata") from exc
 
     # Mp3 specific encoding
     if encoding == "mp3":
-        if id3_separator != "/":
-            audio_file.save(v23_sep=id3_separator, v2_version=3)
-        else:
-            audio_file.save(v2_version=3)
+        try:
+            if id3_separator != "/":
+                audio_file.save(v23_sep=id3_separator, v2_version=3)
+            else:
+                audio_file.save(v2_version=3)
 
-        audio_file = ID3(str(output_file.resolve()))
+            audio_file = ID3(str(output_file.resolve()))
 
-        audio_file.add(WOAS(encoding=3, url=song.url))
+            audio_file.add(WOAS(encoding=3, url=song.url))
 
-        if song.download_url:
-            audio_file.add(COMM(encoding=3, text=song.download_url))
+            if song.download_url:
+                audio_file.add(COMM(encoding=3, text=song.download_url))
 
-        if song.popularity:
-            audio_file.add(
-                POPM(
-                    rating=int(song.popularity * 255 / 100),
+            if song.popularity:
+                audio_file.add(
+                    POPM(
+                        rating=int(song.popularity * 255 / 100),
+                    )
                 )
-            )
 
-        if song.year:
-            audio_file.add(TYER(encoding=3, text=str(song.year)))
+            if song.year:
+                audio_file.add(TYER(encoding=3, text=str(song.year)))
+        except Exception as exc:
+            logger.error("Failed to perform MP3-specific encoding: %s", exc)
+            raise MetadataError("Failed to perform MP3-specific encoding") from exc
 
     if not skip_album_art:
         # Embed album art
-        audio_file = embed_cover(audio_file, song, encoding)
+        try:
+            audio_file = embed_cover(audio_file, song, encoding)
+        except Exception as exc:
+            logger.error("Failed to embed album art: %s", exc)
+            # Don't raise here, we can still save without album art if requested
+            # but usually we want to know why it failed
 
     # Embed lyrics
-    audio_file = embed_lyrics(audio_file, song, encoding)
+    try:
+        audio_file = embed_lyrics(audio_file, song, encoding)
+    except Exception as exc:
+        logger.error("Failed to embed lyrics: %s", exc)
 
-    # Mp3 specific encoding
-    if encoding == "mp3":
-        audio_file.save(v23_sep=id3_separator, v2_version=3)
-    else:
-        audio_file.save()
+    # Final save
+    try:
+        if encoding == "mp3":
+            audio_file.save(v23_sep=id3_separator, v2_version=3)
+        else:
+            audio_file.save()
+    except Exception as exc:
+        logger.error("Failed to save metadata: %s", exc)
+        raise MetadataError("Failed to save metadata") from exc
 
 
 def embed_cover(audio_file, song: Song, encoding: str):

@@ -318,7 +318,7 @@ SPOTIFY_OPTIONS: SpotifyOptions = {
 
 DOWNLOADER_OPTIONS: DownloaderOptions = {
     "audio_providers": ["youtube-music"],
-    "lyrics_providers": ["genius", "azlyrics", "musixmatch"],
+    "lyrics_providers": ["synced", "genius", "azlyrics", "musixmatch"],
     "genius_token": "alXXDbPZtK1m2RrZ8I4k2Hn8Ahsd0Gh_o076HYvcdlBvmc0ULL1H8Z8xRlew5qaG",
     "playlist_numbering": False,
     "playlist_retain_track_cover": False,
@@ -365,6 +365,7 @@ DOWNLOADER_OPTIONS: DownloaderOptions = {
     "create_skip_file": False,
     "respect_skip_file": False,
     "sync_remove_lrc": False,
+    "csv": None,
 }
 
 WEB_OPTIONS: WebOptions = {

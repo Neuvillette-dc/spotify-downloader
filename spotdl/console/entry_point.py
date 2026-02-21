@@ -104,8 +104,15 @@ def entry_point():
             )
 
     # Initialize spotify client
-    SpotifyClient.init(**spotify_settings)
-    spotify_client = SpotifyClient()
+    # Skip initialization if only CSV is provided
+    use_spotify = True
+    if downloader_settings.get("csv") and not arguments.query:
+        use_spotify = False
+    
+    if use_spotify:
+        SpotifyClient.init(**spotify_settings)
+    
+    spotify_client = SpotifyClient() if use_spotify else None
 
     # If the application is frozen start web ui
     # or if the operation is `web`
@@ -143,7 +150,7 @@ def entry_point():
     downloader = Downloader(downloader_settings)
 
     def graceful_exit(_signal, _frame):
-        if spotify_settings["use_cache_file"]:
+        if spotify_client and spotify_settings["use_cache_file"]:
             save_spotify_cache(spotify_client.cache)
 
         downloader.progress_handler.close()
@@ -181,7 +188,7 @@ def entry_point():
     end_time = time.perf_counter()
     logger.debug("Took %d seconds", end_time - start_time)
 
-    if spotify_settings["use_cache_file"]:
+    if spotify_client and spotify_settings["use_cache_file"]:
         save_spotify_cache(spotify_client.cache)
 
     downloader.progress_handler.close()

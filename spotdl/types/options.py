@@ -89,6 +89,7 @@ class DownloaderOptions(TypedDict):
     create_skip_file: Optional[bool]
     respect_skip_file: Optional[bool]
     sync_remove_lrc: Optional[bool]
+    csv: Optional[str]
 
 
 class WebOptions(TypedDict):
@@ -185,6 +186,7 @@ class DownloaderOptionalOptions(TypedDict, total=False):
     create_skip_file: Optional[bool]
     respect_skip_file: Optional[bool]
     sync_remove_lrc: Optional[bool]
+    csv: Optional[str]
 
 
 class WebOptionalOptions(TypedDict, total=False):

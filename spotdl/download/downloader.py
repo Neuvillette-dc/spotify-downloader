@@ -44,6 +44,7 @@ from spotdl.utils.lrc import generate_lrc
 from spotdl.utils.m3u import gen_m3u_files
 from spotdl.utils.metadata import MetadataError, embed_metadata
 from spotdl.utils.search import gather_known_songs, reinit_song, songs_from_albums
+from spotdl.utils.spotify import SpotifyClient
 
 __all__ = [
     "AUDIO_PROVIDERS",
@@ -462,7 +463,7 @@ class Downloader:
                     song.album_artist,
                 ]
             )
-        ):
+        ) and SpotifyClient._instance is not None:
             song = reinit_song(song)
 
         # Create the output file path
@@ -757,6 +758,11 @@ class Downloader:
 
             if not success and result:
                 # If the conversion failed and there is an error message
+                # check if the conversion was interrupted by the user
+                if result.get("return_code") in [-2, 255]:
+                    logger.debug("Conversion interrupted by user")
+                    return song, None
+
                 # create a file with the error message
                 # and save it in the errors directory
                 # raise an exception with file path
@@ -830,6 +836,11 @@ class Downloader:
                     skip_album_art=self.settings["skip_album_art"],
                 )
             except Exception as exception:
+                traceback.print_exc()
+                print(f"DEBUG: Metadata embedding failed for {song.url}")
+                logger.error(
+                    "Failed to embed metadata to the song: %s", traceback.format_exc()
+                )
                 raise MetadataError(
                     "Failed to embed metadata to the song"
                 ) from exception

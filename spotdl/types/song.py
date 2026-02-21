@@ -74,6 +74,9 @@ class Song:
         - The Song object.
         """
 
+        if url.startswith("spotify:track:"):
+            url = "https://open.spotify.com/track/" + url.split(":")[-1]
+
         if "open.spotify.com" not in url or "track" not in url:
             raise SongError(f"Invalid URL: {url}")
 
