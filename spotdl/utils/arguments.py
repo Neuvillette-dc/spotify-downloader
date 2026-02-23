@@ -128,6 +128,7 @@ def parse_main_options(parser: _ArgumentGroup):
         ),
     )
 
+
     parser.add_argument(
         "--genius-access-token",
         dest="genius_token",

@@ -61,6 +61,7 @@ class Song:
     list_length: Optional[int] = None
     artist_id: Optional[str] = None
     album_type: Optional[str] = None
+    artist_cover_url: Optional[str] = None
 
     @classmethod
     def from_url(cls, url: str) -> "Song":
@@ -136,6 +137,13 @@ class Song:
                     "url"
                 ]
                 if raw_album_meta["images"]
+                else None
+            ),
+            artist_cover_url=(
+                max(raw_artist_meta["images"], key=lambda i: i["width"] * i["height"])[
+                    "url"
+                ]
+                if raw_artist_meta["images"]
                 else None
             ),
         )

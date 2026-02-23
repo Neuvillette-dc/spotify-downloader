@@ -65,6 +65,7 @@ def meta(query: List[str], downloader: Downloader) -> None:
                 and song_meta.get("name")
                 and song_meta.get("lyrics")
                 and song_meta.get("album_art")
+                and song_meta.get("artist_cover_url")
             ):
                 logger.info("Song already has metadata: %s", file.name)
                 if downloader.settings["generate_lrc"]:

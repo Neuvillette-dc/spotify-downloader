@@ -116,6 +116,7 @@ MP3_TAG_PRESET = {
     "disccount": "TPOS",
     "cpil": "TCMP",
     "albumart": "APIC",
+    "artistart": "APIC:Artist",
     "encodedby": "TENC",
     "copyright": "TCOP",
     "tempo": "TBPM",
@@ -144,6 +145,7 @@ TAG_TO_SONG = {
     "copyright": "copyright_text",
     "lyrics": "lyrics",
     "albumart": "album_art",
+    "artistart": "artist_cover_url",
 }
 
 M4A_TO_SONG = {
@@ -156,6 +158,7 @@ MP3_TO_SONG = {
     for key, value in MP3_TAG_PRESET.items()
     if TAG_TO_SONG.get(key)
 }
+MP3_TO_SONG["APIC:Artist"] = "artist_cover_url"
 
 LRC_REGEX = re.compile(r"(\[\d{2}:\d{2}.\d{2,3}\])")
 
@@ -207,7 +210,6 @@ def embed_metadata(
         audio_file[tag_preset["encodedby"]] = song.publisher
     except Exception as exc:
         logger.error("Failed to embed basic metadata: %s", exc)
-        logger.debug("Song data: %s", song.json)
         raise MetadataError("Failed to embed basic metadata") from exc
 
     # Embed metadata that isn't always present
@@ -326,57 +328,80 @@ def embed_cover(audio_file, song: Song, encoding: str):
     - song: Song object.
     """
 
-    if not song.cover_url:
-        return audio_file
-
-    # Try to download the cover art
-    try:
-        cover_data = requests.get(
-            song.cover_url,
-            timeout=10,
-            proxies=GlobalConfig.get_parameter("proxies"),
-        ).content
-    except Exception:
-        return audio_file
-
-    # Create the image object for the file type
-    if encoding in ["flac", "ogg", "opus"]:
-        picture = Picture()
-        picture.type = 3
-        picture.desc = "Cover"
-        picture.mime = "image/jpeg"
-        picture.data = cover_data
-
-        if encoding in ["ogg", "opus"]:
-            image_data = picture.write()
-            encoded_data = base64.b64encode(image_data)
-            vcomment_value = encoded_data.decode("ascii")
-            if "metadata_block_picture" in audio_file.keys():
-                audio_file.pop("metadata_block_picture")
-            audio_file["metadata_block_picture"] = [vcomment_value]
-        elif encoding == "flac":
-            if audio_file.pictures:
-                audio_file.clear_pictures()
-            audio_file.add_picture(picture)
-    elif encoding == "m4a":
-        if M4A_TAG_PRESET["albumart"] in audio_file.keys():
-            audio_file.pop(M4A_TAG_PRESET["albumart"])
-        audio_file[M4A_TAG_PRESET["albumart"]] = [
-            MP4Cover(
-                cover_data,
-                imageformat=MP4Cover.FORMAT_JPEG,
+    def download_cover(url: str) -> Optional[bytes]:
+        try:
+            response = requests.get(
+                url,
+                timeout=10,
+                proxies=GlobalConfig.get_parameter("proxies"),
             )
-        ]
-    elif encoding == "mp3":
-        if "APIC:Cover" in audio_file.keys():
-            audio_file.pop("APIC:Cover")
-        audio_file["APIC"] = APIC(
-            encoding=3,
-            mime="image/jpeg",
-            type=3,
-            desc="Cover",
-            data=cover_data,
-        )
+            if response.status_code == 200:
+                return response.content
+            
+            return None
+        except Exception as exc:
+            logger.error("Failed to download cover from %s: %s", url, exc)
+            return None
+
+    if song.cover_url:
+        cover_data = download_cover(song.cover_url)
+        if cover_data:
+            # Create the image object for the file type
+            if encoding in ["flac", "ogg", "opus"]:
+                picture = Picture()
+                picture.type = 3
+                picture.desc = "Cover"
+                picture.mime = "image/jpeg"
+                picture.data = cover_data
+
+                if encoding in ["ogg", "opus"]:
+                    image_data = picture.write()
+                    encoded_data = base64.b64encode(image_data)
+                    vcomment_value = encoded_data.decode("ascii")
+                    if "metadata_block_picture" in audio_file.keys():
+                        audio_file.pop("metadata_block_picture")
+                    audio_file["metadata_block_picture"] = [vcomment_value]
+                elif encoding == "flac":
+                    if audio_file.pictures:
+                        audio_file.clear_pictures()
+                    audio_file.add_picture(picture)
+            elif encoding == "m4a":
+                if M4A_TAG_PRESET["albumart"] in audio_file.keys():
+                    audio_file.pop(M4A_TAG_PRESET["albumart"])
+                audio_file[M4A_TAG_PRESET["albumart"]] = [
+                    MP4Cover(
+                        cover_data,
+                        imageformat=MP4Cover.FORMAT_JPEG,
+                    )
+                ]
+            elif encoding == "mp3":
+                if "APIC:Cover" in audio_file.keys():
+                    audio_file.pop("APIC:Cover")
+                audio_file.add(
+                    APIC(
+                        encoding=3,
+                        mime="image/jpeg",
+                        type=3,
+                        desc="Cover",
+                        data=cover_data,
+                    )
+                )
+                logger.debug("Successfully embedded album art")
+
+    if song.artist_cover_url and encoding == "mp3":
+        artist_cover_data = download_cover(song.artist_cover_url)
+        if artist_cover_data:
+            if "APIC:Artist" in audio_file.keys():
+                audio_file.pop("APIC:Artist")
+            audio_file.add(
+                APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=8,  # Artist/performer
+                    desc="Artist",
+                    data=artist_cover_data,
+                )
+            )
 
     return audio_file
 
@@ -500,6 +525,16 @@ def get_file_metadata(path: Path, id3_separator: str = "/") -> Optional[Dict[str
                     song_meta["album_art"] = pictures[0]
                 else:
                     song_meta["album_art"] = None
+
+                continue
+
+        if key == "artistart":
+            if path.suffix == ".mp3":
+                cover = audio_file.get("APIC:Artist")
+                if cover:
+                    song_meta["artist_cover_url"] = cover.data
+                else:
+                    song_meta["artist_cover_url"] = None
 
                 continue
 

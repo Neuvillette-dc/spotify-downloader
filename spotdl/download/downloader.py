@@ -26,7 +26,13 @@ from spotdl.providers.audio import (
     YouTube,
     YouTubeMusic,
 )
-from spotdl.providers.lyrics import AzLyrics, Genius, LyricsProvider, MusixMatch, Synced
+from spotdl.providers.lyrics import (
+    AzLyrics,
+    Genius,
+    LyricsProvider,
+    MusixMatch,
+    Synced,
+)
 from spotdl.types.options import DownloaderOptionalOptions, DownloaderOptions
 from spotdl.types.song import Song
 from spotdl.utils.archive import Archive
@@ -38,6 +44,7 @@ from spotdl.utils.config import (
     get_temp_path,
     modernize_settings,
 )
+from spotdl.utils.enrichment import enrich_song_metadata
 from spotdl.utils.ffmpeg import FFmpegError, convert, get_ffmpeg_path
 from spotdl.utils.formatter import create_file_name
 from spotdl.utils.lrc import generate_lrc
@@ -62,12 +69,14 @@ AUDIO_PROVIDERS: Dict[str, Type[AudioProvider]] = {
     "piped": Piped,
 }
 
+
 LYRICS_PROVIDERS: Dict[str, Type[LyricsProvider]] = {
     "genius": Genius,
     "musixmatch": MusixMatch,
     "azlyrics": AzLyrics,
     "synced": Synced,
 }
+
 
 SPONSOR_BLOCK_CATEGORIES = {
     "sponsor": "Sponsor",
@@ -409,17 +418,7 @@ class Downloader:
         for lyrics_provider in self.lyrics_providers:
             lyrics = lyrics_provider.get_lyrics(song.name, song.artists)
             if lyrics:
-                logger.debug(
-                    "Found lyrics for %s on %s", song.display_name, lyrics_provider.name
-                )
-
                 return lyrics
-
-            logger.debug(
-                "%s failed to find lyrics for %s",
-                lyrics_provider.name,
-                song.display_name,
-            )
 
         return None
 
@@ -461,10 +460,20 @@ class Downloader:
                     song.track_number,
                     song.album_id,
                     song.album_artist,
+                    song.cover_url,
+                    song.artist_cover_url,
                 ]
             )
-        ) and SpotifyClient._instance is not None:
-            song = reinit_song(song)
+        ): 
+            if SpotifyClient._instance is not None:
+                try:
+                    song = reinit_song(song)
+                except Exception as exc:
+                    logger.debug("Failed to re-initialize from Spotify: %s", exc)
+            
+            # Fallback to enrichment if still missing artwork
+            if not song.cover_url or not song.artist_cover_url:
+                song = enrich_song_metadata(song)
 
         # Create the output file path
         output_file = create_file_name(

@@ -108,10 +108,10 @@ def entry_point():
     use_spotify = True
     if downloader_settings.get("csv") and not arguments.query:
         use_spotify = False
-    
+
     if use_spotify:
         SpotifyClient.init(**spotify_settings)
-    
+
     spotify_client = SpotifyClient() if use_spotify else None
 
     # If the application is frozen start web ui

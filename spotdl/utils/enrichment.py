@@ -9,7 +9,18 @@ import requests
 
 from spotdl.types.song import Song
 
+from ytmusicapi import YTMusic
+
 logger = logging.getLogger(__name__)
+
+# Lazily initialize YTMusic client
+_ytm_client = None
+
+def get_ytm_client() -> YTMusic:
+    global _ytm_client
+    if _ytm_client is None:
+        _ytm_client = YTMusic()
+    return _ytm_client
 
 
 def get_deezer_metadata(query: str) -> Dict[str, Any]:
@@ -62,6 +73,29 @@ def get_itunes_metadata(query: str) -> Dict[str, Any]:
     return {}
 
 
+def get_ytm_metadata(query: str) -> Dict[str, Any]:
+    """
+    Search YouTube Music for track metadata.
+
+    ### Arguments
+    - query: The search query.
+
+    ### Returns
+    - A dictionary containing track metadata.
+    """
+
+    try:
+        client = get_ytm_client()
+        search_results = client.search(query, filter="songs", limit=1)
+
+        if search_results:
+            return search_results[0]
+    except Exception as exc:
+        logger.error("Failed to fetch YouTube Music metadata: %s", exc)
+
+    return {}
+
+
 def enrich_song_metadata(song: Song) -> Song:
     """
     Enrich song metadata using Deezer and iTunes.
@@ -86,6 +120,8 @@ def enrich_song_metadata(song: Song) -> Song:
              song.disc_number = deezer_data.get("disk_number", 1)
         if not song.album_name and deezer_data.get("album"):
             song.album_name = deezer_data["album"].get("title")
+        if not song.artist_cover_url and deezer_data.get("artist"):
+            song.artist_cover_url = deezer_data["artist"].get("picture_xl") or deezer_data["artist"].get("picture_medium")
 
     # Try iTunes for high-res artwork
     itunes_data = get_itunes_metadata(query)
@@ -97,6 +133,27 @@ def enrich_song_metadata(song: Song) -> Song:
 
         if itunes_data.get("primaryGenreName"):
             song.genres = [itunes_data["primaryGenreName"]]
+
+    # Try YouTube Music for high-res artwork and artist art
+    ytm_data = get_ytm_metadata(query)
+    if ytm_data:
+        if not song.cover_url and ytm_data.get("thumbnails"):
+            # Get the highest resolution thumbnail
+            thumbnails = ytm_data["thumbnails"]
+            best_thumb = max(thumbnails, key=lambda x: x.get("width", 0))
+            song.cover_url = best_thumb["url"]
+
+        if not song.artist_cover_url and ytm_data.get("artists"):
+            try:
+                artist_id = ytm_data["artists"][0].get("browseId")
+                if artist_id:
+                    artist_data = get_ytm_client().get_artist(artist_id)
+                    if artist_data.get("thumbnails"):
+                        artist_thumbs = artist_data["thumbnails"]
+                        best_artist_thumb = max(artist_thumbs, key=lambda x: x.get("width", 0))
+                        song.artist_cover_url = best_artist_thumb["url"]
+            except Exception:
+                pass
 
     # Ensure all mandatory fields are not None to satisfy mutagen and other tools
     # These were potentially None if Song.from_missing_data was used

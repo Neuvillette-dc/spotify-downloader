@@ -3,6 +3,7 @@ Base module for all other lyrics providers.
 """
 
 import logging
+import re
 from typing import Dict, List, Optional
 
 from spotdl.utils.formatter import ratio, slugify
@@ -116,12 +117,92 @@ class LyricsProvider:
             return None
 
         try:
-            return self.extract_lyrics(url, **kwargs)
+            lyrics = self.extract_lyrics(url, **kwargs)
+            if lyrics:
+                return self.clean_lyrics(lyrics)
+            return None
         except Exception as exc:
             logger.debug(
                 "%s: Failed to extract lyrics from %s: %s", self.name, url, exc
             )
             return None
+
+    @staticmethod
+    def clean_lyrics(lyrics: str) -> str:
+        """
+        Cleans the lyrics from the given string.
+
+        ### Arguments
+        - lyrics: The lyrics to clean.
+
+        ### Returns
+        - The cleaned lyrics.
+        """
+
+        # 1. Strip Genius Metadata (Headers)
+        # Regex to match headers like "X Contributors", "Lyrics", "Translations", etc.
+        # Often looks like: "10 Contributors\nTranslations\nEnglish\n...\nSome Song Lyrics\n\n"
+        match = re.search(
+            r"^(?:.*\n)*?.*?(?:Contributors?|Translations?|Romanization).*?\n.*?Lyrics\s*?\n\n",
+            lyrics,
+            re.IGNORECASE,
+        )
+        if match:
+            lyrics = lyrics[match.end() :]
+        else:
+            # Fallback for simpler Genius headers or patterns starting with "X Contributors"
+            match = re.search(
+                r"^\s*\d+\s*Contributors?.*?\n(?:.*\n)*?.*?Lyrics\s*?\n\n",
+                lyrics,
+                re.IGNORECASE,
+            )
+            if match:
+                lyrics = lyrics[match.end() :]
+
+            # Strip "You might also like" at the very beginning
+            match = re.search(r"^\s*You might also like.*\n", lyrics, re.IGNORECASE)
+            if match:
+                lyrics = lyrics[match.end() :]
+
+        # 2. Chinese NetEase/Tencent metadata (Line by line removal)
+        # Matches lines starting with "作词 :", "作曲 :", etc.
+        metadata_keywords = [
+            "作词",
+            "作曲",
+            "编曲",
+            "制作人",
+            "音频工程师",
+            "主人声",
+            "和声",
+            "吉他",
+            "键盘",
+            "混音助理",
+            "母带工程师",
+            "鼓",
+            "混音师",
+            "Producers",
+            "Lead.*?Vocals",
+            "Drums",
+            "Mixing",
+            "Mixed at",
+            "Published by",
+            "Recorded at",
+            "Engineering",
+            "Keyboards",
+            "Guitars",
+            "Percussion",
+            "Mastered at",
+        ]
+        netease_pattern = (
+            r"^\s*(?:" + "|".join(metadata_keywords) + r")\s*[:：].*?$"
+        )
+        lyrics = re.sub(netease_pattern, "", lyrics, flags=re.MULTILINE)
+
+        # 3. Strip Genius "Embed" suffix (e.g., "123Embed" at the end of the text)
+        lyrics = re.sub(r"\d*Embed$", "", lyrics)
+
+        cleaned_lyrics = lyrics.strip()
+        return cleaned_lyrics
 
     @property
     def name(self) -> str:
