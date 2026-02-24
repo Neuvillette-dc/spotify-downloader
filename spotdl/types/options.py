@@ -90,6 +90,7 @@ class DownloaderOptions(TypedDict):
     respect_skip_file: Optional[bool]
     sync_remove_lrc: Optional[bool]
     csv: Optional[str]
+    progress: str
 
 
 class WebOptions(TypedDict):

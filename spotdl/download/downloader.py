@@ -168,7 +168,7 @@ class Downloader:
         # semaphore is required to limit concurrent asyncio executions
         self.semaphore = asyncio.Semaphore(self.settings["threads"])
 
-        self.progress_handler = ProgressHandler(self.settings["simple_tui"])
+        self.progress_handler = ProgressHandler(self.settings["simple_tui"], progress_style=self.settings["progress"])
 
         # Gather already present songs
         self.scan_formats = self.settings["detect_formats"] or [self.settings["format"]]

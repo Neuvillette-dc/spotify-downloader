@@ -776,6 +776,15 @@ def parse_misc_options(parser: _ArgumentGroup):
         ),
     )
 
+    # Add progress argument
+    parser.add_argument(
+        "--progress",
+        choices={"default", "bar", "percentage", "counts", "detailed"},
+        default="default",
+        help="Select the progress bar style.",
+        type=str,
+    )
+
 
 def parse_other_options(parser: _ArgumentGroup):
     """

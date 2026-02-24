@@ -44,18 +44,30 @@ ______________________________________________________________________
 
 ## 🚀 Installation
 
-### FFmpeg (Required)
-FFmpeg is required for audio conversion. Install it easily:
+### 1. System Dependencies (Required)
+FFmpeg is required for audio conversion. On Ubuntu/Debian (VPS), install it via:
 ```bash
-spotdl --download-ffmpeg
+sudo apt update && sudo apt install -y ffmpeg
 ```
 
-### From Source
+### 2. Install spotDL
+
+#### **Option A: Quick Install (Recommended for VPS)**
+Install directly from this repository as a package:
+```bash
+pip install git+https://github.com/Neuvillette-dc/spotify-downloader.git
+```
+
+#### **Option B: From Source (For Development)**
 ```bash
 git clone https://github.com/Neuvillette-dc/spotify-downloader
 cd spotify-downloader
 pip install .
 ```
+
+> **Note**: If you're on Linux and the `spotdl` command is not found after installation, you may need to add `~/.local/bin` to your PATH:
+> `export PATH=$PATH:~/.local/bin`
+
 
 ______________________________________________________________________
 
@@ -107,8 +119,8 @@ This project would not be possible without the hard work of the original creator
   <details>
   <summary>Environment Details</summary>
   <ul>
-    <li>Operating System: Linux</li>
-    <li>Python Version: 3.14</li>
+    <li>Operating System: Linux (Ubuntu/Debian)</li>
+    <li>Python Version: 3.10 - 3.13</li>
   </ul>
   </details>
 ______________________________________________________________________

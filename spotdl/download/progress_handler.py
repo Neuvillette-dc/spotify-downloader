@@ -109,6 +109,7 @@ class ProgressHandler:
         simple_tui: bool = False,
         update_callback: Optional[Callable[[Any, str], None]] = None,
         web_ui: bool = False,
+        progress_style: str = "default",
     ):
         """
         Initialize the progress handler.
@@ -128,8 +129,13 @@ class ProgressHandler:
 
         self.simple_tui = simple_tui
         self.web_ui = web_ui
+        self.progress_style = progress_style
         self.quiet = logger.getEffectiveLevel() < 10
         self.overall_task_id: Optional[TaskID] = None
+
+        self.download_count = 0
+        self.skip_count = 0
+        self.error_count = 0
 
         if not self.simple_tui:
             console = get_console()
@@ -209,11 +215,30 @@ class ProgressHandler:
         if not self.simple_tui:
             # If the overall progress bar exists
             if self.overall_task_id is not None:
+                total_songs = int(self.overall_total / 100)
+                percentage = (
+                    (self.overall_progress / self.overall_total) * 100
+                    if self.overall_total > 0
+                    else 0
+                )
+
+                if self.progress_style == "percentage":
+                    message = f"{percentage:>3.0f}% complete"
+                elif self.progress_style == "counts":
+                    message = f"D: {self.download_count}, S: {self.skip_count}, E: {self.error_count} / {total_songs}"
+                elif self.progress_style == "detailed":
+                    message = (
+                        f"D: {self.download_count}, S: {self.skip_count}, "
+                        f"E: {self.error_count} / {total_songs} ({percentage:>3.0f}%)"
+                    )
+                elif self.progress_style == "bar":
+                    message = ""
+                else:  # default
+                    message = f"{self.overall_completed_tasks}/{total_songs} complete"
+
                 self.rich_progress_bar.update(
                     self.overall_task_id,
-                    message=f"{self.overall_completed_tasks}/"
-                    f"{int(self.overall_total / 100)} "
-                    "complete",
+                    message=message,
                     completed=self.overall_progress,
                 )
         else:
@@ -354,6 +379,8 @@ class SongTracker:
         if finish:
             self.progress = 100
 
+        self.parent.error_count += 1
+
         if logger.getEffectiveLevel() == logging.DEBUG:
             logger.exception(message)
         else:
@@ -390,6 +417,7 @@ class SongTracker:
         """
 
         self.progress = 100
+        self.parent.download_count += 1
         self.update(status)
 
     def notify_download_skip(self, status="Skipped") -> None:
@@ -401,6 +429,7 @@ class SongTracker:
         """
 
         self.progress = 100
+        self.parent.skip_count += 1
         self.update(status)
 
     def ffmpeg_progress_hook(self, progress: int) -> None:

@@ -366,6 +366,7 @@ DOWNLOADER_OPTIONS: DownloaderOptions = {
     "respect_skip_file": False,
     "sync_remove_lrc": False,
     "csv": None,
+    "progress": "default",
 }
 
 WEB_OPTIONS: WebOptions = {

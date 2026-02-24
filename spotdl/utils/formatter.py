@@ -216,7 +216,7 @@ def format_query(
         ]
 
         # Add the main artist again to the list
-        if len(artists) == 0 or artists[0] != song.artists[0]:
+        if song.artists and (len(artists) == 0 or artists[0] != song.artists[0]):
             artists.insert(0, song.artists[0])
     else:
         artists = song.artists
@@ -226,8 +226,8 @@ def format_query(
     # the code below is valid, song_list is actually checked for None
     formats = {
         "{title}": song.name,
-        "{artists}": song.artists[0] if short is True else artists_str,
-        "{artist}": song.artists[0],
+        "{artists}": song.artists[0] if (short is True and song.artists) else artists_str,
+        "{artist}": song.artists[0] if song.artists else "",
         "{album}": song.album_name,
         "{album-artist}": song.album_artist,
         "{genre}": song.genres[0] if song.genres else "",
